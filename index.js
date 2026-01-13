@@ -117,7 +117,7 @@ async function checkTimeAndPost() {
           "**➡️ NEXT DUNGEON**",
           `> ${nextPortal}`,
           "━━━━━━━━━━━━━━━━━━",
-          "_Your dungeon has spawned. Hunters, be ready—only the strong survive._",
+          "_Your dungeon has spawned. Hunters,\nbe ready—only the strong survive._",
         ].join("\n")
       )
       .setImage(dungeonImages[currentPortal]) // use big image instead of thumbnail
@@ -173,7 +173,7 @@ client.on("interactionCreate", async (interaction) => {
         "**➡️ NEXT DUNGEON**",
         `> ${nextPortal}`,
         "━━━━━━━━━━━━━━━━━━",
-        "_Your dungeon has spawned. Hunters, be ready—only the strong survive._",
+        "_Your dungeon has spawned. Hunters,\nbe ready—only the strong survive._",
       ].join("\n")
     )
     .setImage(dungeonImages[currentPortal]) // big image
