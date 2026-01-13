@@ -8,8 +8,7 @@ if (!token) {
   process.exit(1);
 }
 
-// Updated raid channel ID
-const raidChannelId = "1460638599082021107";
+const raidChannelId = "1459967642621448316";
 
 // ================= CLIENT =================
 const client = new Client({
@@ -18,7 +17,7 @@ const client = new Client({
 
 // ================= RAID ROTATION =================
 const raids = ["Insect", "Igris", "Elves", "Goblin", "Subway", "Infernal"];
-let currentIndex = raids.indexOf("Goblin"); // First active dungeon = Goblin
+let currentIndex = raids.indexOf("Infernal"); // First active dungeon = Infernal
 
 // ================= ROLE IDS =================
 const raidRoles = {
@@ -43,28 +42,102 @@ const dungeonImages = {
 // ================= PREVENT DOUBLE POST =================
 let lastPostedQuarter = null;
 
+// ================= LIVE COUNTDOWN GLOBALS =================
+let countdownMessage = null;
+let countdownInterval = null;
+let rolePingSent = false;
+
 // ================= READY =================
 client.once("ready", async () => {
   console.log(`Logged in as ${client.user.tag}`);
   setInterval(checkTimeAndPost, 1000);
-
-  // REGISTER TEST COMMAND
-  const commands = [
-    new SlashCommandBuilder()
-      .setName("test")
-      .setDescription("Test dungeon embed and images")
-      .toJSON(),
-  ];
-
-  const rest = new REST({ version: "10" }).setToken(token);
-  try {
-    console.log("Registering slash commands...");
-    await rest.put(Routes.applicationCommands(client.user.id), { body: commands });
-    console.log("Slash commands registered!");
-  } catch (error) {
-    console.error(error);
-  }
 });
+
+// ================= TIME FORMATTER =================
+function formatTime(seconds) {
+  const m = String(Math.floor(seconds / 60)).padStart(2, "0");
+  const s = String(seconds % 60).padStart(2, "0");
+  return `${m}:${s}`;
+}
+
+// ================= LIVE COUNTDOWN FUNCTION =================
+async function startLiveCountdown(channel, dungeonName, imageUrl, totalSeconds) {
+  if (countdownInterval) clearInterval(countdownInterval);
+  if (countdownMessage) await countdownMessage.delete().catch(() => {});
+
+  countdownMessage = null;
+  countdownInterval = null;
+  rolePingSent = false;
+
+  let remaining = totalSeconds;
+
+  const embed = new EmbedBuilder()
+    .setColor(0x11162a)
+    .setTitle("「 SYSTEM WARNING 」")
+    .setDescription(
+      [
+        "━━━━━━━━━━━━━━━━━━",
+        "**🗡️ UPCOMING DUNGEON**",
+        `> ${dungeonName}`,
+        "",
+        "⏳ **Dungeon spawning in**",
+        "",
+        `**${formatTime(remaining)}**`,
+        "",
+        "_Prepare yourselves, hunters._",
+        "━━━━━━━━━━━━━━━━━━",
+      ].join("\n")
+    )
+    .setImage(imageUrl)
+    .setTimestamp();
+
+  countdownMessage = await channel.send({ embeds: [embed] });
+
+  countdownInterval = setInterval(async () => {
+    remaining--;
+
+    if (remaining <= 0) {
+      clearInterval(countdownInterval);
+      countdownInterval = null;
+      return;
+    }
+
+    const isDanger = remaining <= 10;
+
+    // 🔔 Role ping at 5 seconds
+    if (remaining === 5 && !rolePingSent) {
+      const roleId = raidRoles[dungeonName];
+      if (roleId) {
+        await channel.send(`🔔 <@&${roleId}> **5 SECONDS REMAINING**`);
+      }
+      rolePingSent = true;
+    }
+
+    const updatedEmbed = new EmbedBuilder()
+      .setColor(isDanger ? 0xff0000 : 0x11162a)
+      .setTitle(isDanger ? "⚠️⚠️ SYSTEM ALERT ⚠️⚠️" : "「 SYSTEM WARNING 」")
+      .setDescription(
+        [
+          "━━━━━━━━━━━━━━━━━━",
+          isDanger ? "**⚠️ DUNGEON IMMINENT ⚠️**" : "**🗡️ UPCOMING DUNGEON**",
+          `> ${dungeonName}`,
+          "",
+          isDanger ? "⚠️ **SPAWNING IN** ⚠️" : "⏳ **Dungeon spawning in**",
+          "",
+          `**${formatTime(remaining)}**`,
+          "",
+          isDanger
+            ? "_Stand your ground. Survival is not guaranteed._"
+            : "_Prepare yourselves, hunters._",
+          "━━━━━━━━━━━━━━━━━━",
+        ].join("\n")
+      )
+      .setImage(imageUrl)
+      .setTimestamp();
+
+    await countdownMessage.edit({ embeds: [updatedEmbed] }).catch(() => {});
+  }, 1000);
+}
 
 // ================= MAIN LOOP =================
 async function checkTimeAndPost() {
@@ -91,10 +164,16 @@ async function checkTimeAndPost() {
   if (!channel) return;
 
   const currentPortal = raids[currentIndex];
-  const nextPortal = raids[(currentIndex + 1) % raids.length]; // always the upcoming dungeon
+  const nextPortal = raids[(currentIndex + 1) % raids.length]; // always upcoming dungeon
 
   if (minute === 0 || minute === 30) {
     // Active dungeon
+    if (countdownInterval) clearInterval(countdownInterval);
+    if (countdownMessage) await countdownMessage.delete().catch(() => {});
+    countdownInterval = null;
+    countdownMessage = null;
+    rolePingSent = false;
+
     const rolePing = raidRoles[currentPortal] ? `<@&${raidRoles[currentPortal]}>` : "";
 
     const embed = new EmbedBuilder()
@@ -122,43 +201,69 @@ async function checkTimeAndPost() {
     currentIndex = (currentIndex + 1) % raids.length;
 
   } else {
-    // Reminder for upcoming dungeon
-    const reminderEmbed = new EmbedBuilder()
-      .setColor(0x11162a)
-      .setTitle("「 SYSTEM WARNING 」")
-      .setDescription(
-        [
-          "━━━━━━━━━━━━━━━━━━",
-          "**🗡️ UPCOMING DUNGEON**",
-          `> ${nextPortal}`, // always shows correct next dungeon
-          "",
-          "_Prepare yourselves, hunters!_",
-          "━━━━━━━━━━━━━━━━━━",
-        ].join("\n")
-      )
-      .setImage(dungeonImages[nextPortal])
-      .setTimestamp();
-
-    await channel.send({ embeds: [reminderEmbed] });
+    // Reminder for upcoming dungeon with live countdown
+    await startLiveCountdown(channel, nextPortal, dungeonImages[nextPortal], 15 * 60); // 15 min countdown
   }
 }
 
-// ================= TEST COMMAND HANDLER =================
-client.on("interactionCreate", async (interaction) => {
-  if (!interaction.isCommand()) return;
+// ================= /TESTDUNGEON COMMAND =================
+const rest = new REST({ version: "10" }).setToken(token);
 
-  if (interaction.commandName === "test") {
-    // Send multiple embeds for all dungeon images
-    const embeds = raids.map((dungeon) =>
-      new EmbedBuilder()
-        .setColor(0x05ff7f)
-        .setTitle(`${dungeon} Dungeon Test`)
-        .setDescription(`Testing image for ${dungeon} dungeon`)
-        .setImage(dungeonImages[dungeon])
-        .setTimestamp()
+(async () => {
+  try {
+    await rest.put(
+      Routes.applicationCommands(client.user.id),
+      {
+        body: [
+          new SlashCommandBuilder()
+            .setName("testdungeon")
+            .setDescription("Test a dungeon countdown for 10 seconds")
+            .addStringOption((option) =>
+              option
+                .setName("dungeon")
+                .setDescription("Which dungeon to test")
+                .setRequired(true)
+                .addChoices(
+                  { name: "Insect", value: "Insect" },
+                  { name: "Igris", value: "Igris" },
+                  { name: "Elves", value: "Elves" },
+                  { name: "Goblin", value: "Goblin" },
+                  { name: "Subway", value: "Subway" },
+                  { name: "Infernal", value: "Infernal" }
+                )
+            )
+            .toJSON(),
+        ],
+      }
     );
 
-    await interaction.reply({ embeds });
+    console.log("/testdungeon command registered!");
+  } catch (err) {
+    console.error(err);
+  }
+})();
+
+client.on("interactionCreate", async (interaction) => {
+  if (!interaction.isChatInputCommand()) return;
+
+  if (interaction.commandName === "testdungeon") {
+    const dungeonName = interaction.options.getString("dungeon");
+    const imageUrl = dungeonImages[dungeonName];
+
+    if (!imageUrl) {
+      await interaction.reply({ content: "Invalid dungeon.", ephemeral: true });
+      return;
+    }
+
+    await interaction.reply({
+      content: `🔔 Testing ${dungeonName} dungeon countdown (10 seconds)!`,
+      ephemeral: false,
+    });
+
+    const channel = interaction.channel;
+    if (channel) {
+      startLiveCountdown(channel, dungeonName, imageUrl, 10);
+    }
   }
 });
 
