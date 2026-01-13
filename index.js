@@ -8,6 +8,7 @@ if (!token) {
   process.exit(1);
 }
 
+// ✅ Updated raid channel
 const raidChannelId = "1460638599082021107";
 
 // ================= CLIENT =================
