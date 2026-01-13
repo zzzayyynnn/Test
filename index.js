@@ -51,7 +51,7 @@ const dungeonThumbnails = {
 const commands = [
   new SlashCommandBuilder()
     .setName("testportal")
-    .setDescription("Test the cinematic dungeon system embed"),
+    .setDescription("Simulate the dungeon rotation and embed"),
 ].map((cmd) => cmd.toJSON());
 
 // ================= PREVENT DOUBLE POST =================
@@ -61,19 +61,21 @@ let lastPostedQuarter = null;
 client.once("ready", async () => {
   console.log(`Logged in as ${client.user.tag}`);
 
+  // Register slash commands
   const rest = new REST({ version: "10" }).setToken(token);
   await rest.put(Routes.applicationCommands(client.user.id), {
     body: commands,
   });
-
   console.log("/testportal registered");
+
+  // Automatic rotation posts
   setInterval(checkTimeAndPost, 1000);
 });
 
 // ================= MAIN LOOP =================
 async function checkTimeAndPost() {
   const now = new Date();
-  const phTime = new Date(now.getTime() + 8 * 60 * 60 * 1000);
+  const phTime = new Date(now.getTime() + 8 * 60 * 60 * 1000); // PH time
 
   const minute = phTime.getMinutes();
   const second = phTime.getSeconds();
@@ -98,6 +100,7 @@ async function checkTimeAndPost() {
   const nextPortal = raids[(currentIndex + 1) % raids.length];
 
   if (minute === 0 || minute === 30) {
+    // Active dungeon
     const rolePing = raidRoles[currentPortal]
       ? `<@&${raidRoles[currentPortal]}>`
       : "";
@@ -124,8 +127,8 @@ async function checkTimeAndPost() {
     await channel.send({ content: rolePing, embeds: [embed] });
     currentIndex = (currentIndex + 1) % raids.length;
   } else {
+    // Reminder for upcoming dungeon
     const upcomingPortal = raids[currentIndex];
-
     const reminderEmbed = new EmbedBuilder()
       .setColor(0x11162a)
       .setTitle("「 SYSTEM WARNING 」")
@@ -153,6 +156,10 @@ client.on("interactionCreate", async (interaction) => {
   const currentPortal = raids[currentIndex];
   const nextPortal = raids[(currentIndex + 1) % raids.length];
 
+  const rolePing = raidRoles[currentPortal]
+    ? `<@&${raidRoles[currentPortal]}>`
+    : "";
+
   const embed = new EmbedBuilder()
     .setColor(0x05070f)
     .setTitle("「 SYSTEM — DUNGEON STATUS 」")
@@ -165,13 +172,14 @@ client.on("interactionCreate", async (interaction) => {
         "**➡️ NEXT DUNGEON**",
         `> ${nextPortal}`,
         "━━━━━━━━━━━━━━━━━━",
+        "_Authority of the Shadow Monarch detected._",
       ].join("\n")
     )
     .setThumbnail(dungeonThumbnails[currentPortal])
     .setFooter({ text: "ARISE." })
     .setTimestamp();
 
-  await interaction.reply({ embeds: [embed] });
+  await interaction.reply({ content: rolePing, embeds: [embed] });
 });
 
 // ================= EXPRESS (KEEP ALIVE) =================
