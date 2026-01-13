@@ -1,16 +1,17 @@
-# Discord Raid Bot
+# Raid Portal Bot
 
-Automatic Discord bot that posts raid updates every 15 minutes based on Philippine time.  
-Raid rotation occurs every 30 minutes. Infinite loop.
+Cinematic dungeon rotation bot inspired by Solo Leveling.
+
+## Features
+- Automatic portal rotation (00 / 15 / 30 / 45)
+- Cinematic system embeds
+- Role ping per dungeon
+- /testportal slash command
+- Render / Railway ready
 
 ## Setup
-
-1. Clone this repository
-2. Run `npm install`
-3. Fill in `config.json`:
-   - `token` → your bot token
-   - `raidChannelId` → the Discord channel ID
-   - `startRaid` → which raid to start with (e.g., "Subway")
-4. Run bot:  
-   ```bash
-   npm start
+1. Create Discord bot
+2. Enable APPLICATION COMMANDS
+3. Set TOKEN env variable
+4. npm install
+5. npm start
