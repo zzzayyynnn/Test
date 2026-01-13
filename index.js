@@ -47,12 +47,6 @@ let countdownMessage = null;
 let countdownInterval = null;
 let rolePingSent = false;
 
-// ================= READY =================
-client.once("ready", async () => {
-  console.log(`Logged in as ${client.user.tag}`);
-  setInterval(checkTimeAndPost, 1000);
-});
-
 // ================= TIME FORMATTER =================
 function formatTime(seconds) {
   const m = String(Math.floor(seconds / 60)).padStart(2, "0");
@@ -164,7 +158,7 @@ async function checkTimeAndPost() {
   if (!channel) return;
 
   const currentPortal = raids[currentIndex];
-  const nextPortal = raids[(currentIndex + 1) % raids.length]; // always upcoming dungeon
+  const nextPortal = raids[(currentIndex + 1) % raids.length];
 
   if (minute === 0 || minute === 30) {
     // Active dungeon
@@ -206,10 +200,12 @@ async function checkTimeAndPost() {
   }
 }
 
-// ================= /TESTDUNGEON COMMAND =================
-const rest = new REST({ version: "10" }).setToken(token);
+// ================= READY & REGISTER COMMAND =================
+client.once("ready", async () => {
+  console.log(`Logged in as ${client.user.tag}`);
 
-(async () => {
+  // Register /testdungeon command AFTER bot is ready
+  const rest = new REST({ version: "10" }).setToken(token);
   try {
     await rest.put(
       Routes.applicationCommands(client.user.id),
@@ -236,13 +232,16 @@ const rest = new REST({ version: "10" }).setToken(token);
         ],
       }
     );
-
     console.log("/testdungeon command registered!");
   } catch (err) {
-    console.error(err);
+    console.error("Failed to register command:", err);
   }
-})();
 
+  // Start the dungeon check loop
+  setInterval(checkTimeAndPost, 1000);
+});
+
+// ================= COMMAND HANDLER =================
 client.on("interactionCreate", async (interaction) => {
   if (!interaction.isChatInputCommand()) return;
 
