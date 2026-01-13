@@ -39,12 +39,12 @@ const raidRoles = {
 
 // ================= THUMBNAILS =================
 const dungeonThumbnails = {
-  Insect: "https://i.imgur.com/6XKQZ5y.png",
-  Igris: "https://i.imgur.com/1XKQZ5y.png",
-  Elves: "https://i.imgur.com/2XKQZ5y.png",
-  Goblin: "https://i.imgur.com/3XKQZ5y.png",
-  Subway: "https://i.imgur.com/4XKQZ5y.png",
-  Infernal: "https://i.imgur.com/5XKQZ5y.png",
+  Goblin: "https://cdn.discordapp.com/attachments/1460638599082021107/1460649062020677662/5555d8b30006ff3c2f25f4ab05a748d2.png",
+  Subway: "https://cdn.discordapp.com/attachments/1460638599082021107/1460649474601910332/image.png",
+  Elves: "https://cdn.discordapp.com/attachments/1460638599082021107/1460649155746599205/image.png",
+  Igris: "https://cdn.discordapp.com/attachments/1460638599082021107/1460649284214194497/image.png",
+  Infernal: "https://cdn.discordapp.com/attachments/1460638599082021107/1460650252016156973/image.png",
+  Insect: "https://cdn.discordapp.com/attachments/1460638599082021107/1460649853548761251/image.png",
 };
 
 // ================= SLASH COMMAND =================
