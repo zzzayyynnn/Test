@@ -8,7 +8,6 @@ if (!token) {
   process.exit(1);
 }
 
-// ✅ Updated raid channel
 const raidChannelId = "1460638599082021107";
 
 // ================= CLIENT =================
@@ -18,7 +17,7 @@ const client = new Client({
 
 // ================= RAID ROTATION =================
 const raids = ["Insect", "Igris", "Elves", "Goblin", "Subway", "Infernal"];
-let currentIndex = raids.indexOf("Infernal"); // First active dungeon = Infernal
+let currentIndex = raids.indexOf("Infernal");
 
 // ================= ROLE IDS =================
 const raidRoles = {
@@ -56,7 +55,7 @@ function formatTime(seconds) {
 }
 
 // ================= LIVE COUNTDOWN FUNCTION =================
-async function startLiveCountdown(channel, dungeonName, imageUrl, totalSeconds) {
+async function startLiveCountdown(channel, dungeonName, imageUrl, totalSeconds, pingAt = 180) {
   if (countdownInterval) clearInterval(countdownInterval);
   if (countdownMessage) await countdownMessage.delete().catch(() => {});
 
@@ -97,13 +96,13 @@ async function startLiveCountdown(channel, dungeonName, imageUrl, totalSeconds) 
       return;
     }
 
-    const isDanger = remaining <= 10;
+    const isDanger = remaining <= 60; // turn red when <=1min
 
-    // 🔔 Role ping at 5 seconds
-    if (remaining === 5 && !rolePingSent) {
+    // 🔔 Role ping at start of countdown
+    if (remaining === pingAt && !rolePingSent) {
       const roleId = raidRoles[dungeonName];
       if (roleId) {
-        await channel.send(`🔔 <@&${roleId}> **5 SECONDS REMAINING**`);
+        await channel.send(`🔔 <@&${roleId}> **Dungeon will spawn in ${formatTime(pingAt)}!**`);
       }
       rolePingSent = true;
     }
@@ -119,7 +118,7 @@ async function startLiveCountdown(channel, dungeonName, imageUrl, totalSeconds) 
           "",
           isDanger ? "⚠️ **SPAWNING IN** ⚠️" : "⏳ **Dungeon spawning in**",
           "",
-          `**${formatTime(remaining)}**`,
+          isDanger ? `**\`${formatTime(remaining)}\`**` : `**${formatTime(remaining)}**`,
           "",
           isDanger
             ? "_Stand your ground. Survival is not guaranteed._"
@@ -137,7 +136,7 @@ async function startLiveCountdown(channel, dungeonName, imageUrl, totalSeconds) 
 // ================= MAIN LOOP =================
 async function checkTimeAndPost() {
   const now = new Date();
-  const phTime = new Date(now.getTime() + 8 * 60 * 60 * 1000); // PH time
+  const phTime = new Date(now.getTime() + 8 * 60 * 60 * 1000);
 
   const minute = phTime.getMinutes();
   const second = phTime.getSeconds();
@@ -162,7 +161,6 @@ async function checkTimeAndPost() {
   const nextPortal = raids[(currentIndex + 1) % raids.length];
 
   if (minute === 0 || minute === 30) {
-    // Active dungeon
     if (countdownInterval) clearInterval(countdownInterval);
     if (countdownMessage) await countdownMessage.delete().catch(() => {});
     countdownInterval = null;
@@ -192,12 +190,9 @@ async function checkTimeAndPost() {
 
     await channel.send({ content: rolePing, embeds: [embed] });
 
-    // increment after posting active dungeon
     currentIndex = (currentIndex + 1) % raids.length;
-
   } else {
-    // Reminder for upcoming dungeon with live countdown
-    await startLiveCountdown(channel, nextPortal, dungeonImages[nextPortal], 15 * 60); // 15 min countdown
+    await startLiveCountdown(channel, nextPortal, dungeonImages[nextPortal], 15 * 60);
   }
 }
 
@@ -205,7 +200,7 @@ async function checkTimeAndPost() {
 client.once("ready", async () => {
   console.log(`Logged in as ${client.user.tag}`);
 
-  // Register /testdungeon command AFTER bot is ready
+  // Register /testdungeon command
   const rest = new REST({ version: "10" }).setToken(token);
   try {
     await rest.put(
@@ -214,7 +209,7 @@ client.once("ready", async () => {
         body: [
           new SlashCommandBuilder()
             .setName("testdungeon")
-            .setDescription("Test a dungeon countdown for 10 seconds")
+            .setDescription("Test a dungeon countdown for 3 minutes")
             .addStringOption((option) =>
               option
                 .setName("dungeon")
@@ -238,7 +233,6 @@ client.once("ready", async () => {
     console.error("Failed to register command:", err);
   }
 
-  // Start the dungeon check loop
   setInterval(checkTimeAndPost, 1000);
 });
 
@@ -256,13 +250,13 @@ client.on("interactionCreate", async (interaction) => {
     }
 
     await interaction.reply({
-      content: `🔔 Testing ${dungeonName} dungeon countdown (10 seconds)!`,
+      content: `🔔 Testing ${dungeonName} dungeon countdown (3 minutes)!`,
       ephemeral: false,
     });
 
     const channel = interaction.channel;
     if (channel) {
-      startLiveCountdown(channel, dungeonName, imageUrl, 10);
+      startLiveCountdown(channel, dungeonName, imageUrl, 180, 180); // 3 minutes countdown, ping at start
     }
   }
 });
