@@ -117,7 +117,7 @@ async function checkTimeAndPost() {
           "**➡️ NEXT DUNGEON**",
           `> ${nextPortal}`,
           "━━━━━━━━━━━━━━━━━━",
-          "_Authority of the Shadow Monarch detected._",
+          "_Your dungeon has spawned. Hunters, be ready—only the strong survive._",
         ].join("\n")
       )
       .setImage(dungeonImages[currentPortal]) // use big image instead of thumbnail
@@ -138,7 +138,7 @@ async function checkTimeAndPost() {
           "**🗡️ UPCOMING DUNGEON**",
           `> ${upcomingPortal}`,
           "",
-          "_The shadows are gathering._",
+          "_Prepare yourselves, hunters!_",
           "━━━━━━━━━━━━━━━━━━",
         ].join("\n")
       )
@@ -173,7 +173,7 @@ client.on("interactionCreate", async (interaction) => {
         "**➡️ NEXT DUNGEON**",
         `> ${nextPortal}`,
         "━━━━━━━━━━━━━━━━━━",
-        "_Authority of the Shadow Monarch detected._",
+        "_Your dungeon has spawned. Hunters, be ready—only the strong survive._",
       ].join("\n")
     )
     .setImage(dungeonImages[currentPortal]) // big image
