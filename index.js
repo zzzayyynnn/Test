@@ -37,8 +37,8 @@ const raidRoles = {
   Elves: "1460131344205218018",
 };
 
-// ================= THUMBNAILS =================
-const dungeonThumbnails = {
+// ================= THUMBNAILS / IMAGES =================
+const dungeonImages = {
   Goblin: "https://cdn.discordapp.com/attachments/1460638599082021107/1460649062020677662/5555d8b30006ff3c2f25f4ab05a748d2.png",
   Subway: "https://cdn.discordapp.com/attachments/1460638599082021107/1460649474601910332/image.png",
   Elves: "https://cdn.discordapp.com/attachments/1460638599082021107/1460649155746599205/image.png",
@@ -120,7 +120,7 @@ async function checkTimeAndPost() {
           "_Authority of the Shadow Monarch detected._",
         ].join("\n")
       )
-      .setThumbnail(dungeonThumbnails[currentPortal])
+      .setImage(dungeonImages[currentPortal]) // use big image instead of thumbnail
       .setFooter({ text: "ARISE." })
       .setTimestamp();
 
@@ -142,6 +142,7 @@ async function checkTimeAndPost() {
           "━━━━━━━━━━━━━━━━━━",
         ].join("\n")
       )
+      .setImage(dungeonImages[upcomingPortal])
       .setTimestamp();
 
     await channel.send({ embeds: [reminderEmbed] });
@@ -175,7 +176,7 @@ client.on("interactionCreate", async (interaction) => {
         "_Authority of the Shadow Monarch detected._",
       ].join("\n")
     )
-    .setThumbnail(dungeonThumbnails[currentPortal])
+    .setImage(dungeonImages[currentPortal]) // big image
     .setFooter({ text: "ARISE." })
     .setTimestamp();
 
