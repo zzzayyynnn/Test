@@ -8,7 +8,7 @@ if (!token) {
   process.exit(1);
 }
 
-const raidChannelId = "1459967642621448316";
+const raidChannelId = "1460638599082021107";
 
 // ================= CLIENT =================
 const client = new Client({
