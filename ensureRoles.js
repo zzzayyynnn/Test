@@ -10,10 +10,8 @@ const raids = [
 
 async function ensureRaidRoles(guild) {
   const roles = {};
-
   for (const raid of raids) {
     let role = guild.roles.cache.find(r => r.name === raid);
-
     if (!role) {
       role = await guild.roles.create({
         name: raid,
@@ -21,10 +19,8 @@ async function ensureRaidRoles(guild) {
         reason: "Raid self-role",
       });
     }
-
     roles[raid] = role.id;
   }
-
   return roles;
 }
 
