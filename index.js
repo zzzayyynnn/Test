@@ -2,7 +2,6 @@ require("dotenv").config();
 const { Client, GatewayIntentBits, EmbedBuilder } = require("discord.js");
 const express = require("express");
 const fs = require("fs");
-const path = require("path");
 const { loadConfig } = require("./utils/saveConfig");
 const { raids } = require("./utils/ensureRoles");
 const interactionHandler = require("./handlers/interaction");
@@ -38,9 +37,10 @@ let lastReminderSlot = null;
 let reminderMessage = null;
 let pingSent = false;
 
-// ========== POST REMINDER ==========
+// ========== POST REMINDER FUNCTION ==========
 async function postReminder(channel, dungeon, secondsLeft, raidRoles) {
   pingSent = false;
+
   const format = s =>
     `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
 
@@ -135,7 +135,7 @@ async function mainLoop() {
       const targetMinute = m === 20 ? 30 : 0;
       const secondsLeft = (targetMinute - m + (targetMinute <= m ? 60 : 0)) * 60;
 
-      // raidRoles = optional; can integrate ensureRoles later for ping
+      // raidRoles optional (can integrate ensureRoles later)
       await postReminder(channel, upcoming, secondsLeft, {});
     }
   }
