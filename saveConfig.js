@@ -1,6 +1,5 @@
 const fs = require("fs");
 const path = require("path");
-
 const CONFIG_FILE = path.join(__dirname, "../data/guildConfig.json");
 
 function loadConfig() {
