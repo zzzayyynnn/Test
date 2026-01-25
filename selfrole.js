@@ -21,14 +21,8 @@ module.exports = {
       rows.push(new ActionRowBuilder().addComponents(buttons.splice(0, 5)));
     }
 
-    await interaction.channel.send({
-      content: "🎮 **Choose your raid roles:**",
-      components: rows,
-    });
-
-    await interaction.reply({
-      content: "✅ Self-role menu posted!",
-      ephemeral: true,
-    });
+    await interaction.channel.send({ content: "🎮 **Choose your raid roles:**", components: rows });
+    await interaction.reply({ content: "✅ Self-role menu posted!", ephemeral: true });
   },
 };
+
