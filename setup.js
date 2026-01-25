@@ -15,16 +15,10 @@ module.exports = {
 
   async execute(interaction) {
     const channel = interaction.options.getChannel("channel");
-
     const config = loadConfig();
-    config[interaction.guildId] = {
-      raidChannelId: channel.id,
-    };
+    config[interaction.guildId] = { raidChannelId: channel.id };
     saveConfig(config);
 
-    await interaction.reply({
-      content: `✅ Raid channel set to ${channel}`,
-      ephemeral: true,
-    });
+    await interaction.reply({ content: `✅ Raid channel set to ${channel}`, ephemeral: true });
   },
 };
