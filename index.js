@@ -16,9 +16,11 @@ if (!token || !clientId) {
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMembers, // Required for reaction roles
-    GatewayIntentBits.GuildMessageReactions,
+    GatewayIntentBits.GuildMembers,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.GuildMessageReactions
   ],
+  partials: ['MESSAGE', 'CHANNEL', 'REACTION']
 });
 
 // ================= SERVER CONFIG =================
@@ -79,13 +81,6 @@ function formatHM(date) {
   return `${String(date.getHours()).padStart(2,"0")}:${String(date.getMinutes()).padStart(2,"0")}`;
 }
 
-function getNextSlot(time) {
-  const [h, m] = time.split(":").map(Number);
-  const d = new Date();
-  d.setHours(h, m + 30, 0, 0);
-  return formatHM(d);
-}
-
 // ================= ENSURE SELF-ROLES =================
 async function ensureRoles(guild) {
   for (const roleName of Object.values(selfRoleEmojis)) {
@@ -101,7 +96,7 @@ async function postSelfRoleMessage(guild, channel) {
 
   const embed = new EmbedBuilder()
     .setTitle("React to assign yourself roles")
-    .setDescription(Object.entries(selfRoleEmojis).map(([e,r])=>`${e} → @${r}`).join("\n"))
+    .setDescription(Object.entries(selfRoleEmojis).map(([e,r]) => `${e} → @${r}`).join("\n"))
     .setColor(0x00ff00);
 
   const message = await channel.send({ embeds: [embed] });
@@ -115,20 +110,28 @@ async function postSelfRoleMessage(guild, channel) {
 
   collector.on("collect", async (reaction, user) => {
     try {
+      console.log(`Collected ${reaction.emoji.name} from ${user.tag}`);
       const roleName = selfRoleEmojis[reaction.emoji.name];
       const role = guild.roles.cache.find(r => r.name === roleName);
+      if (!role) return console.log("Role not found:", roleName);
       const member = await guild.members.fetch(user.id);
-      if (role && member) await member.roles.add(role);
-    } catch(err){ console.error("Add role error:", err);}
+      if (member) await member.roles.add(role);
+    } catch (err) {
+      console.error("Add role error:", err);
+    }
   });
 
   collector.on("remove", async (reaction, user) => {
     try {
+      console.log(`Removed ${reaction.emoji.name} from ${user.tag}`);
       const roleName = selfRoleEmojis[reaction.emoji.name];
       const role = guild.roles.cache.find(r => r.name === roleName);
+      if (!role) return console.log("Role not found:", roleName);
       const member = await guild.members.fetch(user.id);
-      if (role && member) await member.roles.remove(role);
-    } catch(err){ console.error("Remove role error:", err);}
+      if (member) await member.roles.remove(role);
+    } catch (err) {
+      console.error("Remove role error:", err);
+    }
   });
 }
 
@@ -189,7 +192,7 @@ client.once("ready", async () => {
   }
 });
 
-// ================= EXPRESS =================
+// ================= EXPRESS SERVER =================
 const app = express();
 app.get("/", (_, res) => res.send("Bot is running"));
 app.listen(process.env.PORT || 3000);
