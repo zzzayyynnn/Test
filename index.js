@@ -24,34 +24,7 @@ const client = new Client({
 });
 
 // ================= SERVER CONFIG =================
-const guildConfigs = new Map(); // store { channelId } per server
-
-// ================= DUNGEON SCHEDULE =================
-const dungeonSchedule = {
-  "00:00": "Igris", "00:30": "Demon Castle", "01:00": "Elves", "01:30": "Goblin",
-  "02:00": "Subway", "02:30": "Infernal", "03:00": "Insect", "03:30": "Igris",
-  "04:00": "Demon Castle", "04:30": "Elves", "05:00": "Goblin", "05:30": "Subway",
-  "06:00": "Infernal", "06:30": "Insect", "07:00": "Igris", "07:30": "Demon Castle",
-  "08:00": "Goblin", "08:30": "Subway", "09:00": "Infernal", "09:30": "Insect",
-  "10:00": "Igris", "10:30": "Demon Castle", "11:00": "Elves", "11:30": "Goblin",
-  "12:00": "Subway", "12:30": "Infernal", "13:00": "Insect", "13:30": "Igris",
-  "14:00": "Demon Castle", "14:30": "Elves", "15:00": "Goblin", "15:30": "Subway",
-  "16:00": "Infernal", "16:30": "Insect", "17:00": "Igris", "17:30": "Demon Castle",
-  "18:00": "Elves", "18:30": "Goblin", "19:00": "Subway", "19:30": "Infernal",
-  "20:00": "Insect", "20:30": "Igris", "21:00": "Demon Castle", "21:30": "Elves",
-  "22:00": "Goblin", "22:30": "Subway", "23:00": "Infernal", "23:30": "Insect",
-};
-
-// ================= DUNGEON IMAGES =================
-const dungeonImages = {
-  Goblin: "https://cdn.discordapp.com/attachments/1460638599082021107/1460695534078529679/image.png",
-  Subway: "https://cdn.discordapp.com/attachments/1460638599082021107/1460696594457563291/image.png",
-  Infernal: "https://cdn.discordapp.com/attachments/1460638599082021107/1460697434920587489/image.png",
-  Insect: "https://cdn.discordapp.com/attachments/1460638599082021107/1460696683498176737/image.png",
-  Igris: "https://cdn.discordapp.com/attachments/1460638599082021107/1460696861399842979/image.png",
-  Elves: "https://cdn.discordapp.com/attachments/1460638599082021107/1460695678941663377/image.png",
-  "Demon Castle": "https://cdn.discordapp.com/attachments/1410965755742130247/1463577590039183431/image.png",
-};
+const guildConfigs = new Map(); // store { channelId, selfRoleMessageId } per server
 
 // ================= SELF-ROLE EMOJIS =================
 const selfRoleEmojis = {
@@ -64,28 +37,16 @@ const selfRoleEmojis = {
   "👹": "Demon Castle Portal"
 };
 
-// ================= TIME HELPERS =================
-function getPHTime() {
-  const now = new Date();
-  return new Date(
-    now.getUTCFullYear(),
-    now.getUTCMonth(),
-    now.getUTCDate(),
-    now.getUTCHours() + 8,
-    now.getUTCMinutes(),
-    now.getUTCSeconds()
-  );
-}
-
-function formatHM(date) {
-  return `${String(date.getHours()).padStart(2,"0")}:${String(date.getMinutes()).padStart(2,"0")}`;
-}
-
 // ================= ENSURE SELF-ROLES =================
 async function ensureRoles(guild) {
   for (const roleName of Object.values(selfRoleEmojis)) {
-    if (!guild.roles.cache.find(r => r.name === roleName)) {
-      await guild.roles.create({ name: roleName, mentionable: true, reason: "Self-role setup" });
+    let role = guild.roles.cache.find(r => r.name === roleName);
+    if (!role) {
+      role = await guild.roles.create({
+        name: roleName,
+        mentionable: true,
+        reason: "Self-role setup"
+      });
     }
   }
 }
@@ -96,44 +57,67 @@ async function postSelfRoleMessage(guild, channel) {
 
   const embed = new EmbedBuilder()
     .setTitle("React to assign yourself roles")
-    .setDescription(Object.entries(selfRoleEmojis).map(([e,r]) => `${e} → @${r}`).join("\n"))
+    .setDescription(
+      Object.entries(selfRoleEmojis)
+        .map(([emoji, roleName]) => {
+          const role = guild.roles.cache.find(r => r.name === roleName);
+          return role ? `${emoji} → ${role}` : `${emoji} → ${roleName}`;
+        })
+        .join("\n")
+    )
     .setColor(0x00ff00);
 
   const message = await channel.send({ embeds: [embed] });
 
+  // React with all emojis
   for (const emoji of Object.keys(selfRoleEmojis)) {
-    await message.react(emoji);
+    await message.react(emoji).catch(console.error);
   }
 
-  const filter = (reaction, user) => !user.bot && Object.keys(selfRoleEmojis).includes(reaction.emoji.name);
-  const collector = message.createReactionCollector({ filter, dispose: true });
-
-  collector.on("collect", async (reaction, user) => {
-    try {
-      console.log(`Collected ${reaction.emoji.name} from ${user.tag}`);
-      const roleName = selfRoleEmojis[reaction.emoji.name];
-      const role = guild.roles.cache.find(r => r.name === roleName);
-      if (!role) return console.log("Role not found:", roleName);
-      const member = await guild.members.fetch(user.id);
-      if (member) await member.roles.add(role);
-    } catch (err) {
-      console.error("Add role error:", err);
-    }
-  });
-
-  collector.on("remove", async (reaction, user) => {
-    try {
-      console.log(`Removed ${reaction.emoji.name} from ${user.tag}`);
-      const roleName = selfRoleEmojis[reaction.emoji.name];
-      const role = guild.roles.cache.find(r => r.name === roleName);
-      if (!role) return console.log("Role not found:", roleName);
-      const member = await guild.members.fetch(user.id);
-      if (member) await member.roles.remove(role);
-    } catch (err) {
-      console.error("Remove role error:", err);
-    }
-  });
+  // Save the self-role message ID for future reaction handling
+  guildConfigs.set(guild.id, { ...guildConfigs.get(guild.id), selfRoleMessageId: message.id });
 }
+
+// ================= GLOBAL REACTION HANDLERS =================
+client.on("messageReactionAdd", async (reaction, user) => {
+  if (user.bot) return;
+  if (reaction.partial) await reaction.fetch().catch(() => {});
+
+  const guild = reaction.message.guild;
+  if (!guild) return;
+
+  const config = guildConfigs.get(guild.id);
+  if (!config?.selfRoleMessageId || reaction.message.id !== config.selfRoleMessageId) return;
+
+  const roleName = selfRoleEmojis[reaction.emoji.name];
+  if (!roleName) return;
+
+  const role = guild.roles.cache.find(r => r.name === roleName);
+  if (!role) return;
+
+  const member = await guild.members.fetch(user.id);
+  member.roles.add(role).catch(console.error);
+});
+
+client.on("messageReactionRemove", async (reaction, user) => {
+  if (user.bot) return;
+  if (reaction.partial) await reaction.fetch().catch(() => {});
+
+  const guild = reaction.message.guild;
+  if (!guild) return;
+
+  const config = guildConfigs.get(guild.id);
+  if (!config?.selfRoleMessageId || reaction.message.id !== config.selfRoleMessageId) return;
+
+  const roleName = selfRoleEmojis[reaction.emoji.name];
+  if (!roleName) return;
+
+  const role = guild.roles.cache.find(r => r.name === roleName);
+  if (!role) return;
+
+  const member = await guild.members.fetch(user.id);
+  member.roles.remove(role).catch(console.error);
+});
 
 // ================= SLASH COMMANDS =================
 client.on("interactionCreate", async (interaction) => {
@@ -150,7 +134,7 @@ client.on("interactionCreate", async (interaction) => {
     if (!channel || !channel.permissionsFor(guild.members.me).has(PermissionsBitField.Flags.SendMessages)) {
       return interaction.reply({ content: "I cannot send messages in that channel!", ephemeral: true });
     }
-    guildConfigs.set(guild.id, { channelId: channel.id });
+    guildConfigs.set(guild.id, { ...guildConfigs.get(guild.id), channelId: channel.id });
     return interaction.reply({ content: `Self-role messages will be posted in ${channel}!`, ephemeral: true });
   }
 
