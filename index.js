@@ -24,17 +24,18 @@ const client = new Client({
 });
 
 // ================= SERVER CONFIG =================
-const guildConfigs = new Map(); // store { channelId, selfRoleMessageId } per server
+const guildConfigs = new Map(); // { channelId, selfRoleMessageId, emojis: {emoji: roleId} }
 
 // ================= SELF-ROLE EMOJIS =================
+// Using common Discord emojis
 const selfRoleEmojis = {
-  "🐶": "Igris Portal Dungeon",
-  "🐱": "Elves Portal Dungeon",
-  "🦅": "Infernal Portal Dungeon",
-  "🦉": "Insect Portal Dungeon",
-  "🐺": "Goblin Portal Dungeon",
-  "🐹": "Subway Portal Dungeon",
-  "👹": "Demon Castle Portal"
+  "🟢": "Green Team",
+  "🔵": "Blue Team",
+  "🟡": "Yellow Team",
+  "🔴": "Red Team",
+  "⚪": "White Team",
+  "⚫": "Black Team",
+  "🟣": "Purple Team"
 };
 
 // ================= ENSURE SELF-ROLES =================
@@ -45,7 +46,7 @@ async function ensureRoles(guild) {
       role = await guild.roles.create({
         name: roleName,
         mentionable: true,
-        reason: "Self-role setup"
+        reason: "Reaction role setup"
       });
     }
   }
@@ -55,14 +56,18 @@ async function ensureRoles(guild) {
 async function postSelfRoleMessage(guild, channel) {
   await ensureRoles(guild);
 
+  // Map emojis to role IDs
+  const emojiRoleMap = {};
+  for (const [emoji, roleName] of Object.entries(selfRoleEmojis)) {
+    const role = guild.roles.cache.find(r => r.name === roleName);
+    if (role) emojiRoleMap[emoji] = role.id;
+  }
+
   const embed = new EmbedBuilder()
-    .setTitle("React to assign yourself roles")
+    .setTitle("React to assign yourself a role!")
     .setDescription(
-      Object.entries(selfRoleEmojis)
-        .map(([emoji, roleName]) => {
-          const role = guild.roles.cache.find(r => r.name === roleName);
-          return role ? `${emoji} → ${role}` : `${emoji} → ${roleName}`;
-        })
+      Object.entries(emojiRoleMap)
+        .map(([emoji, roleId]) => `${emoji} → <@&${roleId}>`)
         .join("\n")
     )
     .setColor(0x00ff00);
@@ -70,16 +75,21 @@ async function postSelfRoleMessage(guild, channel) {
   const message = await channel.send({ embeds: [embed] });
 
   // React with all emojis
-  for (const emoji of Object.keys(selfRoleEmojis)) {
+  for (const emoji of Object.keys(emojiRoleMap)) {
     await message.react(emoji).catch(console.error);
   }
 
-  // Save the self-role message ID for future reaction handling
-  guildConfigs.set(guild.id, { ...guildConfigs.get(guild.id), selfRoleMessageId: message.id });
+  // Save config
+  guildConfigs.set(guild.id, {
+    ...guildConfigs.get(guild.id),
+    channelId: channel.id,
+    selfRoleMessageId: message.id,
+    emojis: emojiRoleMap
+  });
 }
 
-// ================= GLOBAL REACTION HANDLERS =================
-client.on("messageReactionAdd", async (reaction, user) => {
+// ================= REACTION HANDLERS =================
+async function handleReaction(reaction, user, add) {
   if (user.bot) return;
   if (reaction.partial) await reaction.fetch().catch(() => {});
 
@@ -89,35 +99,19 @@ client.on("messageReactionAdd", async (reaction, user) => {
   const config = guildConfigs.get(guild.id);
   if (!config?.selfRoleMessageId || reaction.message.id !== config.selfRoleMessageId) return;
 
-  const roleName = selfRoleEmojis[reaction.emoji.name];
-  if (!roleName) return;
-
-  const role = guild.roles.cache.find(r => r.name === roleName);
-  if (!role) return;
+  const roleId = config.emojis[reaction.emoji.name];
+  if (!roleId) return;
 
   const member = await guild.members.fetch(user.id);
-  member.roles.add(role).catch(console.error);
-});
+  if (add) {
+    member.roles.add(roleId).catch(console.error);
+  } else {
+    member.roles.remove(roleId).catch(console.error);
+  }
+}
 
-client.on("messageReactionRemove", async (reaction, user) => {
-  if (user.bot) return;
-  if (reaction.partial) await reaction.fetch().catch(() => {});
-
-  const guild = reaction.message.guild;
-  if (!guild) return;
-
-  const config = guildConfigs.get(guild.id);
-  if (!config?.selfRoleMessageId || reaction.message.id !== config.selfRoleMessageId) return;
-
-  const roleName = selfRoleEmojis[reaction.emoji.name];
-  if (!roleName) return;
-
-  const role = guild.roles.cache.find(r => r.name === roleName);
-  if (!role) return;
-
-  const member = await guild.members.fetch(user.id);
-  member.roles.remove(role).catch(console.error);
-});
+client.on("messageReactionAdd", (reaction, user) => handleReaction(reaction, user, true));
+client.on("messageReactionRemove", (reaction, user) => handleReaction(reaction, user, false));
 
 // ================= SLASH COMMANDS =================
 client.on("interactionCreate", async (interaction) => {
@@ -135,10 +129,10 @@ client.on("interactionCreate", async (interaction) => {
       return interaction.reply({ content: "I cannot send messages in that channel!", ephemeral: true });
     }
     guildConfigs.set(guild.id, { ...guildConfigs.get(guild.id), channelId: channel.id });
-    return interaction.reply({ content: `Self-role messages will be posted in ${channel}!`, ephemeral: true });
+    return interaction.reply({ content: `Reaction-role messages will be posted in ${channel}!`, ephemeral: true });
   }
 
-  if (commandName === "selfrole") {
+  if (commandName === "reactionrole") {
     const config = guildConfigs.get(guild.id);
     if (!config?.channelId) return interaction.reply({ content: "Channel not set! Use /setchannel first.", ephemeral: true });
 
@@ -146,7 +140,7 @@ client.on("interactionCreate", async (interaction) => {
     if (!channel) return interaction.reply({ content: "Configured channel not found!", ephemeral: true });
 
     await postSelfRoleMessage(guild, channel);
-    return interaction.reply({ content: "Self-role message posted!", ephemeral: true });
+    return interaction.reply({ content: "Reaction-role message posted!", ephemeral: true });
   }
 });
 
@@ -158,14 +152,14 @@ client.once("ready", async () => {
   const commands = [
     new SlashCommandBuilder()
       .setName("setchannel")
-      .setDescription("Set the channel where self-role messages will be posted")
+      .setDescription("Set the channel where reaction-role messages will be posted")
       .addChannelOption(option => option
         .setName("channel")
-        .setDescription("Channel to post self-role messages")
+        .setDescription("Channel to post reaction-role messages")
         .setRequired(true)),
     new SlashCommandBuilder()
-      .setName("selfrole")
-      .setDescription("Post the self-role message in the configured channel")
+      .setName("reactionrole")
+      .setDescription("Post the reaction-role message in the configured channel")
   ].map(cmd => cmd.toJSON());
 
   try {
