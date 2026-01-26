@@ -61,7 +61,7 @@ async function postSelfRoleMessage(guild, channel) {
       Object.entries(selfRoleEmojis)
         .map(([emoji, roleName]) => {
           const role = guild.roles.cache.find(r => r.name === roleName);
-          return role ? `${emoji} → <@&${role.id}>` : `${emoji} → ${roleName}`;
+          return role ? `${emoji} → ${role}` : `${emoji} → ${roleName}`;
         })
         .join("\n")
     )
