@@ -1,22 +1,19 @@
 module.exports = (client) => {
-  client.on("interactionCreate", async interaction => {
-    if (interaction.isChatInputCommand()) {
-      const command = client.commands.get(interaction.commandName);
-      if (!command) return;
-      try { await command.execute(interaction); } 
-      catch (err) { console.error(err); await interaction.reply({ content: "❌ Error executing command", ephemeral: true }); }
-    }
+  client.on("interactionCreate", async (interaction) => {
+    if (!interaction.isChatInputCommand()) return;
 
-    if (interaction.isButton() && interaction.customId.startsWith("raidrole_")) {
-      const roleId = interaction.customId.split("_")[1];
-      const member = interaction.member;
-      if (member.roles.cache.has(roleId)) {
-        await member.roles.remove(roleId);
-        await interaction.reply({ content: "❌ Role removed", ephemeral: true });
-      } else {
-        await member.roles.add(roleId);
-        await interaction.reply({ content: "✅ Role added", ephemeral: true });
-      }
+    if (interaction.commandName === "setup") {
+      const channel = interaction.options.getChannel("channel");
+      const { loadConfig, saveConfig } = require("./saveConfig");
+
+      const config = loadConfig();
+      config[interaction.guildId] = { raidChannelId: channel.id };
+      saveConfig(config);
+
+      await interaction.reply({
+        content: `✅ Raid channel set to ${channel}`,
+        ephemeral: true,
+      });
     }
   });
 };
