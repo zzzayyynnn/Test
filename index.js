@@ -14,7 +14,7 @@ if (!token || !clientId) {
 
 // ================= CLIENT =================
 const client = new Client({
-  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent],
+  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessageReactions, GatewayIntentBits.GuildMembers],
 });
 
 // ================= SERVER CONFIG =================
@@ -47,6 +47,17 @@ const dungeonImages = {
   "Demon Castle": "https://cdn.discordapp.com/attachments/1410965755742130247/1463577590039183431/image.png",
 };
 
+// ================= SELF-ROLE EMOJI MAP =================
+const selfRoleEmojis = {
+  "🐶": "Igris Portal Dungeon",
+  "🐱": "Elves Portal Dungeon",
+  "🦅": "Infernal Portal Dungeon",
+  "🦉": "Insect Portal Dungeon",
+  "🐺": "Goblin Portal Dungeon",
+  "🐹": "Subway Portal Dungeon",
+  "👹": "Demon Castle Portal"
+};
+
 // ================= TIME HELPERS =================
 function getPHTime() {
   const now = new Date();
@@ -71,137 +82,52 @@ function getNextSlot(time) {
   return formatHM(d);
 }
 
-// ================= REMINDER FUNCTION =================
-async function postReminder(guildConfig, channel, dungeon, secondsLeft) {
-  guildConfig.pingSent = false;
-
-  const format = (s) => `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
-
-  const updateEmbed = async () => {
-    const red = secondsLeft <= 180;
-    const embed = new EmbedBuilder()
-      .setColor(red ? 0xff0000 : 0x11162a)
-      .setTitle("「 SYSTEM WARNING 」")
-      .setDescription(
-        [
-          "━━━━━━━━━━━━━━━━━━",
-          "**🗡️ UPCOMING DUNGEON**",
-          `> ${dungeon}`,
-          "",
-          `⏱️ Starts in: ${format(secondsLeft)}`,
-          red ? "🔴 **RED ALERT!**" : "",
-          "━━━━━━━━━━━━━━━━━━",
-        ].join("\n")
-      )
-      .setImage(dungeonImages[dungeon])
-      .setTimestamp();
-
-    if (!guildConfig.reminderMessage) {
-      guildConfig.reminderMessage = await channel.send({ embeds: [embed] });
-    } else {
-      await guildConfig.reminderMessage.edit({ embeds: [embed] });
-    }
-  };
-
-  await updateEmbed();
-
-  const timer = setInterval(async () => {
-    secondsLeft--;
-    if (secondsLeft <= 0) {
-      clearInterval(timer);
-      return;
-    }
-
-    if (secondsLeft === 180 && !guildConfig.pingSent) {
-      guildConfig.pingSent = true;
-      const role = channel.guild.roles.cache.find(r => r.name === dungeon);
-      if (role) await channel.send(`<@&${role.id}>`);
-    }
-
-    await updateEmbed();
-  }, 1000);
-}
-
 // ================= ENSURE DUNGEON ROLES =================
 async function ensureDungeonRoles(guild) {
-  const existingRoles = guild.roles.cache;
-  for (let dungeon of Object.keys(dungeonImages)) {
-    if (!existingRoles.find(r => r.name === dungeon)) {
+  for (let roleName of Object.values(selfRoleEmojis)) {
+    if (!guild.roles.cache.find(r => r.name === roleName)) {
       await guild.roles.create({
-        name: dungeon,
+        name: roleName,
         mentionable: true,
-        reason: "Dungeon ping role",
+        reason: "Self-role setup",
       });
     }
   }
 }
 
-// ================= MAIN LOOP =================
-async function mainLoop() {
-  const ph = getPHTime();
-  const m = ph.getMinutes();
-  const s = ph.getSeconds();
-  const slot = `${m}-${s}`;
+// ================= POST SELF-ROLE MESSAGE =================
+async function postSelfRoleMessage(guild, channel) {
+  await ensureDungeonRoles(guild);
 
-  for (const [guildId, config] of guildConfigs.entries()) {
-    const guild = await client.guilds.fetch(guildId).catch(() => null);
-    if (!guild) continue;
+  const embed = new EmbedBuilder()
+    .setTitle("React to assign yourself roles")
+    .setDescription(Object.entries(selfRoleEmojis).map(([emoji, role]) => `${emoji} → @${role}`).join("\n"))
+    .setColor(0x00ff00);
 
-    const channel = await guild.channels.fetch(config.channelId).catch(() => null);
-    if (!channel) continue;
+  const message = await channel.send({ embeds: [embed] });
 
-    // ACTIVE (:00 / :30)
-    if (s === 0 && (m === 0 || m === 30)) {
-      if (config.lastActiveSlot === slot) continue;
-      config.lastActiveSlot = slot;
-
-      const timeKey = formatHM(ph);
-      const active = dungeonSchedule[timeKey];
-      if (!active) continue;
-
-      const next = dungeonSchedule[getNextSlot(timeKey)];
-
-      await channel.send({
-        embeds: [
-          new EmbedBuilder()
-            .setColor(0x05070f)
-            .setTitle("「 SYSTEM — DUNGEON STATUS 」")
-            .setDescription(
-              [
-                "━━━━━━━━━━━━━━━━━━",
-                "**⚔️ ACTIVE DUNGEON**",
-                `> ${active}`,
-                "",
-                "**➡️ NEXT DUNGEON**",
-                `> ${next}`,
-                "━━━━━━━━━━━━━━━━━━",
-              ].join("\n")
-            )
-            .setImage(dungeonImages[active])
-            .setTimestamp(),
-        ],
-      });
-
-      config.reminderMessage = null;
-      config.pingSent = false;
-    }
-
-    // REMINDER (:20 / :50)
-    if (s === 0 && (m === 20 || m === 50)) {
-      if (config.lastReminderSlot === slot) continue;
-      config.lastReminderSlot = slot;
-
-      const base = new Date(ph);
-      base.setMinutes(m === 20 ? 30 : 60, 0, 0);
-
-      const upcomingTime = formatHM(base);
-      const upcoming = dungeonSchedule[upcomingTime];
-      if (!upcoming) continue;
-
-      const secondsLeft = (base - ph) / 1000;
-      await postReminder(config, channel, upcoming, secondsLeft);
-    }
+  // Add reactions
+  for (let emoji of Object.keys(selfRoleEmojis)) {
+    await message.react(emoji);
   }
+
+  // Reaction collector
+  const filter = (reaction, user) => !user.bot && Object.keys(selfRoleEmojis).includes(reaction.emoji.name);
+  const collector = message.createReactionCollector({ filter, dispose: true });
+
+  collector.on("collect", async (reaction, user) => {
+    const roleName = selfRoleEmojis[reaction.emoji.name];
+    const member = await guild.members.fetch(user.id);
+    const role = guild.roles.cache.find(r => r.name === roleName);
+    if (role) member.roles.add(role).catch(console.error);
+  });
+
+  collector.on("remove", async (reaction, user) => {
+    const roleName = selfRoleEmojis[reaction.emoji.name];
+    const member = await guild.members.fetch(user.id);
+    const role = guild.roles.cache.find(r => r.name === roleName);
+    if (role) member.roles.remove(role).catch(console.error);
+  });
 }
 
 // ================= SLASH COMMANDS =================
@@ -224,18 +150,8 @@ client.on("interactionCreate", async (interaction) => {
   }
 
   if (commandName === "selfrole") {
-    const config = guildConfigs.get(guild.id) || {};
     const selfRoleChannel = interaction.channel;
-
-    await ensureDungeonRoles(guild);
-
-    await selfRoleChannel.send({
-      content: "React to assign yourself dungeon roles! (Currently only manual assignment)",
-    });
-
-    config.selfRoleChannelId = selfRoleChannel.id;
-    guildConfigs.set(guild.id, config);
-
+    await postSelfRoleMessage(guild, selfRoleChannel);
     await interaction.reply({ content: "Self-role message posted!", ephemeral: true });
   }
 });
@@ -243,8 +159,8 @@ client.on("interactionCreate", async (interaction) => {
 // ================= REGISTER SLASH COMMANDS =================
 client.once("ready", async () => {
   console.log(`Logged in as ${client.user.tag}`);
-  setInterval(mainLoop, 1000);
 
+  const rest = new REST({ version: "10" }).setToken(token);
   const commands = [
     new SlashCommandBuilder()
       .setName("setchannel")
@@ -252,10 +168,9 @@ client.once("ready", async () => {
       .addChannelOption(option => option.setName("channel").setDescription("The channel to post reminders in").setRequired(true)),
     new SlashCommandBuilder()
       .setName("selfrole")
-      .setDescription("Post a message for self-assigning dungeon roles"),
+      .setDescription("Post a message for self-assigning dungeon roles")
   ].map(cmd => cmd.toJSON());
 
-  const rest = new REST({ version: "10" }).setToken(token);
   try {
     await rest.put(Routes.applicationCommands(clientId), { body: commands });
     console.log("Slash commands registered!");
