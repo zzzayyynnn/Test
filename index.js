@@ -10,17 +10,16 @@ const {
 } = require("discord.js");
 require("dotenv").config();
 
-/* ===================== ENV CHECK ===================== */
+/* ================= ENV ================= */
 const TOKEN = process.env.TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
-const GUILD_ID = process.env.GUILD_ID;
 
-if (!TOKEN || !CLIENT_ID || !GUILD_ID) {
-  console.error("❌ Missing ENV variables (TOKEN / CLIENT_ID / GUILD_ID)");
+if (!TOKEN || !CLIENT_ID) {
+  console.error("❌ Missing TOKEN or CLIENT_ID");
   process.exit(1);
 }
 
-/* ===================== CLIENT ===================== */
+/* ================= CLIENT ================= */
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -30,10 +29,11 @@ const client = new Client({
   partials: [Partials.Message, Partials.Channel, Partials.Reaction]
 });
 
-/* ===================== DATA ===================== */
-let SELFROLE_CHANNEL_ID = null;
-let SELFROLE_MESSAGE_ID = null;
+/* ================= DATA ================= */
+// guildId => { channelId, messageId }
+const guildConfig = new Map();
 
+/* EMOJI → ROLE NAME */
 const reactionRoles = {
   "🐶": "Igris Portal Dungeon",
   "🐱": "Elves Portal Dungeon",
@@ -44,16 +44,16 @@ const reactionRoles = {
   "👹": "Demon Castle Portal"
 };
 
-/* ===================== SLASH COMMANDS ===================== */
+/* ================= SLASH COMMANDS (GLOBAL) ================= */
 const commands = [
   new SlashCommandBuilder()
     .setName("setchannel")
-    .setDescription("Set channel for self-role embed")
+    .setDescription("Set channel for self-role")
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
     .addChannelOption(opt =>
       opt
         .setName("channel")
-        .setDescription("Channel for self role")
+        .setDescription("Channel for self-role embed")
         .setRequired(true)
     ),
 
@@ -68,30 +68,34 @@ const rest = new REST({ version: "10" }).setToken(TOKEN);
 (async () => {
   try {
     await rest.put(
-      Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID),
-      { body: commands.map(cmd => cmd.toJSON()) }
+      Routes.applicationCommands(CLIENT_ID), // 🌍 PUBLIC / GLOBAL
+      { body: commands.map(c => c.toJSON()) }
     );
-    console.log("✅ Slash commands registered");
+    console.log("✅ Global slash commands registered");
   } catch (err) {
-    console.error("❌ Slash command register failed:", err);
+    console.error("❌ Failed to register commands:", err);
   }
 })();
 
-/* ===================== READY ===================== */
+/* ================= READY ================= */
 client.once("ready", () => {
   console.log(`🤖 Logged in as ${client.user.tag}`);
 });
 
-/* ===================== INTERACTIONS ===================== */
+/* ================= INTERACTIONS ================= */
 client.on("interactionCreate", async interaction => {
   if (!interaction.isChatInputCommand()) return;
 
-  const guild = interaction.guild;
+  const guildId = interaction.guild.id;
 
-  /* ---------- /setchannel ---------- */
+  /* ---- /setchannel ---- */
   if (interaction.commandName === "setchannel") {
     const channel = interaction.options.getChannel("channel");
-    SELFROLE_CHANNEL_ID = channel.id;
+
+    guildConfig.set(guildId, {
+      channelId: channel.id,
+      messageId: null
+    });
 
     return interaction.reply({
       content: `✅ Self-role channel set to ${channel}`,
@@ -99,31 +103,32 @@ client.on("interactionCreate", async interaction => {
     });
   }
 
-  /* ---------- /selfrole ---------- */
+  /* ---- /selfrole ---- */
   if (interaction.commandName === "selfrole") {
-    if (!SELFROLE_CHANNEL_ID) {
+    const config = guildConfig.get(guildId);
+    if (!config?.channelId) {
       return interaction.reply({
-        content: "❌ Please set channel first using /setchannel",
+        content: "❌ Use /setchannel first",
         ephemeral: true
       });
     }
 
-    const channel = await guild.channels.fetch(SELFROLE_CHANNEL_ID);
+    const channel = await interaction.guild.channels.fetch(config.channelId);
 
-    // CREATE ROLES
+    /* CREATE ROLES */
     const roleMap = {};
     for (const roleName of Object.values(reactionRoles)) {
-      let role = guild.roles.cache.find(r => r.name === roleName);
+      let role = interaction.guild.roles.cache.find(r => r.name === roleName);
       if (!role) {
-        role = await guild.roles.create({
+        role = await interaction.guild.roles.create({
           name: roleName,
-          reason: "Reaction Role Auto Create"
+          reason: "Self-role auto create"
         });
       }
       roleMap[roleName] = role;
     }
 
-    // EMBED
+    /* EMBED */
     const description = Object.entries(reactionRoles)
       .map(([emoji, roleName]) => `${emoji} → ${roleMap[roleName]}`)
       .join("\n");
@@ -135,50 +140,42 @@ client.on("interactionCreate", async interaction => {
       .setFooter({ text: "React to get your dungeon role" });
 
     const message = await channel.send({ embeds: [embed] });
-    SELFROLE_MESSAGE_ID = message.id;
+
+    config.messageId = message.id;
+    guildConfig.set(guildId, config);
 
     for (const emoji of Object.keys(reactionRoles)) {
       await message.react(emoji);
     }
 
     return interaction.reply({
-      content: "✅ Self-role embed sent successfully!",
+      content: "✅ Self-role embed sent!",
       ephemeral: true
     });
   }
 });
 
-/* ===================== REACTION ADD ===================== */
-client.on("messageReactionAdd", async (reaction, user) => {
+/* ================= REACTIONS ================= */
+async function handleReaction(reaction, user, add) {
   if (user.bot) return;
   if (reaction.partial) await reaction.fetch();
 
-  if (reaction.message.id !== SELFROLE_MESSAGE_ID) return;
+  const guildId = reaction.message.guild.id;
+  const config = guildConfig.get(guildId);
+  if (!config || reaction.message.id !== config.messageId) return;
 
   const roleName = reactionRoles[reaction.emoji.name];
   if (!roleName) return;
 
   const member = await reaction.message.guild.members.fetch(user.id);
   const role = reaction.message.guild.roles.cache.find(r => r.name === roleName);
+  if (!role) return;
 
-  if (role) await member.roles.add(role);
-});
+  add ? member.roles.add(role) : member.roles.remove(role);
+}
 
-/* ===================== REACTION REMOVE ===================== */
-client.on("messageReactionRemove", async (reaction, user) => {
-  if (user.bot) return;
-  if (reaction.partial) await reaction.fetch();
+client.on("messageReactionAdd", (r, u) => handleReaction(r, u, true));
+client.on("messageReactionRemove", (r, u) => handleReaction(r, u, false));
 
-  if (reaction.message.id !== SELFROLE_MESSAGE_ID) return;
-
-  const roleName = reactionRoles[reaction.emoji.name];
-  if (!roleName) return;
-
-  const member = await reaction.message.guild.members.fetch(user.id);
-  const role = reaction.message.guild.roles.cache.find(r => r.name === roleName);
-
-  if (role) await member.roles.remove(role);
-});
-
-/* ===================== LOGIN ===================== */
+/* ================= LOGIN ================= */
 client.login(TOKEN);
