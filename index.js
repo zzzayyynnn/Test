@@ -5,7 +5,7 @@ require("dotenv").config();
 
 // ================= CONFIG =================
 const token = process.env.TOKEN;
-const clientId = process.env.CLIENT_ID; // your bot's client ID
+const clientId = process.env.CLIENT_ID;
 
 if (!token || !clientId) {
   console.error("TOKEN or CLIENT_ID env variable not found!");
@@ -18,7 +18,6 @@ const client = new Client({
 });
 
 // ================= SERVER CONFIG =================
-// Stores per-guild config: { channelId, selfRoleChannelId, reminderMessage, pingSent, lastActiveSlot, lastReminderSlot }
 const guildConfigs = new Map();
 
 // ================= FIXED 24H DUNGEON SCHEDULE =================
@@ -72,7 +71,7 @@ function getNextSlot(time) {
   return formatHM(d);
 }
 
-// ================= POST REMINDER =================
+// ================= REMINDER FUNCTION =================
 async function postReminder(guildConfig, channel, dungeon, secondsLeft) {
   guildConfig.pingSent = false;
 
@@ -80,7 +79,6 @@ async function postReminder(guildConfig, channel, dungeon, secondsLeft) {
 
   const updateEmbed = async () => {
     const red = secondsLeft <= 180;
-
     const embed = new EmbedBuilder()
       .setColor(red ? 0xff0000 : 0x11162a)
       .setTitle("「 SYSTEM WARNING 」")
@@ -152,7 +150,7 @@ async function mainLoop() {
     const channel = await guild.channels.fetch(config.channelId).catch(() => null);
     if (!channel) continue;
 
-    // ===== ACTIVE (:00 / :30) =====
+    // ACTIVE (:00 / :30)
     if (s === 0 && (m === 0 || m === 30)) {
       if (config.lastActiveSlot === slot) continue;
       config.lastActiveSlot = slot;
@@ -188,7 +186,7 @@ async function mainLoop() {
       config.pingSent = false;
     }
 
-    // ===== REMINDER (:20 / :50) =====
+    // REMINDER (:20 / :50)
     if (s === 0 && (m === 20 || m === 50)) {
       if (config.lastReminderSlot === slot) continue;
       config.lastReminderSlot = slot;
@@ -231,7 +229,7 @@ client.on("interactionCreate", async (interaction) => {
 
     await ensureDungeonRoles(guild);
 
-    let msg = await selfRoleChannel.send({
+    await selfRoleChannel.send({
       content: "React to assign yourself dungeon roles! (Currently only manual assignment)",
     });
 
