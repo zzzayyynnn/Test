@@ -1,6 +1,7 @@
 // index.js
 const { Client, GatewayIntentBits, EmbedBuilder, REST, Routes, SlashCommandBuilder, PermissionsBitField } = require("discord.js");
 const express = require("express");
+require("dotenv").config();
 
 // ================= CONFIG =================
 const token = process.env.TOKEN;
